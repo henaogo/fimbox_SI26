@@ -61,6 +61,7 @@ from .source_naming import DEFAULT_IDENTIFIER, source_name
 from .download_data.nld_data import DownloadNLD
 from .download_data.osm_data import DownloadOSMBridges, DownloadOSMRoads
 from .download_data.utils import HUC8Finder, find_headwater_points
+from .geometry_utils import repair_geometry
 
 _FILENAMES = {
     "wbd": "wbd.gpkg",
@@ -484,12 +485,24 @@ class getAllInputData:
                 exc_info=True,
             )
 
-        self.boundary_gdf = self._drop_fid(
-            boundary[~boundary.is_empty].to_crs("EPSG:4326")
-        )
-        self.buffer_gdf = self._drop_fid(
-            buffered[~buffered.is_empty].to_crs("EPSG:4326")
-        )
+        boundary = boundary[~boundary.is_empty].copy()
+        buffered = buffered[~buffered.is_empty].copy()
+
+        # The land/sea (and, less often, DEM-domain) difference/clip overlays above
+        # can leave a geometry that reports .is_valid == True (so make_valid() alone
+        # doesn't help) but is still numerically fragile enough on complex, detailed
+        # coastlines to throw "TopologyException: side location conflict" the next
+        # time ANYTHING calls union_all()/unary_union() on it -- which DEMProcessor,
+        # the NHD/flowlines downloader, and others all do independently on this same
+        # boundary. Each one looks like an unrelated per-dataset failure, but it's the
+        # same underlying precision-robustness issue every time. See
+        # geometry_utils.repair_geometry -- done once here so every downstream
+        # consumer inherits clean geometry.
+        boundary["geometry"] = repair_geometry(boundary.geometry)
+        buffered["geometry"] = repair_geometry(buffered.geometry)
+
+        self.boundary_gdf = self._drop_fid(boundary.to_crs("EPSG:4326"))
+        self.buffer_gdf = self._drop_fid(buffered.to_crs("EPSG:4326"))
 
     def _save_boundaries(self):
         self.boundary_gdf.to_file(self._out("wbd"), driver="GPKG", index=False)
@@ -530,7 +543,18 @@ class getAllInputData:
             )
             self.logger.info(f"DEM --> {_FILENAMES['dem']}")
         except Exception as exc:
+            # Unlike the other run_* steps (NHD/NLD/OSM), which log-and-continue
+            # because their data is optional or has a degraded-mode fallback
+            # (see the DEM-domain-mask except above: "continuing with original
+            # boundary"), the DEM itself is not optional -- every downstream
+            # step (BranchDerivation, every branch's pit-fill/D8/HAND raster)
+            # requires it. Swallowing this here let a HUC finish run() and get
+            # logged PASS by run_shard.py with no DEM and therefore no real
+            # branch output at all (found 2026-09-22: 851/2114 "PASS" HUCs, 40%,
+            # had no dem.tif on disk). Re-raise so the caller sees this HUC
+            # actually failed.
             self.logger.error(f"DEM failed: {exc}", exc_info=True)
+            raise
 
     def run_nhd(self):
         # Lakes always download; flowlines/catchments are user-toggleable and

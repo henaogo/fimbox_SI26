@@ -22,6 +22,7 @@ import numpy as np
 import pandas as pd
 from shapely.geometry import Point
 
+from ..geometry_utils import repair_geometry
 from ..source_naming import detect_identifier, resolve_source, source_name
 
 gpd.options.io_engine = "pyogrio"
@@ -875,17 +876,26 @@ def _dissolve_levelpaths(
     waterbodies: gpd.GeoDataFrame,
     huc_boundary: gpd.GeoDataFrame,
 ) -> gpd.GeoDataFrame:
+    # Real stream-network geometry (especially near complex coastlines) can be
+    # numerically fragile enough to throw "TopologyException: side location
+    # conflict" the moment dissolve()/union_all() touches it, even when it
+    # reports .is_valid == True. See geometry_utils.repair_geometry.
+    streams = streams.copy()
+    streams["geometry"] = repair_geometry(streams.geometry)
+
     dissolved = (
         streams[[branch_id_attribute, "geometry"]]
         .dissolve(by=branch_id_attribute)
         .reset_index()
     )
+    dissolved["geometry"] = repair_geometry(dissolved.geometry)
 
     if not clip_boundary.empty:
         dissolved = gpd.clip(dissolved, clip_boundary)
 
     if not waterbodies.empty:
-        keep_mask = ~dissolved.geometry.within(waterbodies.union_all())
+        waterbodies_geom = repair_geometry(waterbodies.geometry)
+        keep_mask = ~dissolved.geometry.within(waterbodies_geom.union_all())
         dissolved = dissolved.loc[keep_mask].copy()
 
     if not huc_boundary.empty:

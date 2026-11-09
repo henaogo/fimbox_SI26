@@ -194,6 +194,53 @@ class HUC8Finder:
         resp.raise_for_status()
         return gpd.read_file(BytesIO(resp.content))
 
+    def _service_paging_info(self) -> tuple:
+        """Return (max_record_count, object_id_field) from the service's own
+        metadata, so pagination adapts if the service's limit ever changes.
+        Falls back to (1000, 'OBJECTID') if metadata is unreachable."""
+        try:
+            resp = requests.get(f"{self._URL}", params={"f": "json"}, timeout=30)
+            resp.raise_for_status()
+            meta = resp.json()
+            max_count = int(meta.get("maxRecordCount", 1000))
+            oid_field = meta.get("objectIdFieldName", "OBJECTID")
+            return max_count, oid_field
+        except Exception as exc:
+            log.warning(f"Could not read service paging metadata ({exc}); "
+                        f"falling back to page size 1000 / OBJECTID")
+            return 1000, "OBJECTID"
+
+    def _post_geojson_paginated(self, params: dict) -> gpd.GeoDataFrame:
+        """
+        Like _post_geojson, but pages through resultOffset/resultRecordCount
+        until the service reports no more rows. Needed because ArcGIS
+        FeatureServers cap each response at maxRecordCount (commonly
+        1000-2000) regardless of how many features actually match the query
+        -- a query over a large area (e.g. all of CONUS) silently truncates
+        without this.
+        """
+        page_size, oid_field = self._service_paging_info()
+        page_params = dict(params)
+        page_params["orderByFields"] = oid_field
+        page_params["resultRecordCount"] = page_size
+
+        pages = []
+        offset = 0
+        while True:
+            page_params["resultOffset"] = offset
+            page = self._post_geojson(page_params)
+            if page.empty:
+                break
+            pages.append(page)
+            self._log(f"  page at offset {offset}: {len(page)} rows")
+            if len(page) < page_size:
+                break
+            offset += page_size
+
+        if not pages:
+            return gpd.GeoDataFrame(geometry=[], crs="EPSG:4326")
+        return pd.concat(pages, ignore_index=True)
+
     # from boundary to intersecting HUC8s
     def from_boundary(
         self,
@@ -205,6 +252,10 @@ class HUC8Finder:
         Return a GeoDataFrame of HUC8 polygons that intersect the boundary.
         Adds an ``overlap_pct`` column when calc_overlap=True.
         Saves to <out_dir>/intersecting_huc8.gpkg when save=True.
+
+        Paginates automatically (see _post_geojson_paginated) so boundaries
+        that intersect more than one FeatureServer page (e.g. a CONUS-wide
+        extent) return every matching HUC8, not just the first page.
         """
         gdf = self._load_boundary(boundary, layer)
         geom_4326 = unary_union(gdf.to_crs(4326).geometry)
@@ -223,7 +274,7 @@ class HUC8Finder:
             "returnGeometry": "true",
             "outSR": 4326,
         }
-        result = self._post_geojson(params)
+        result = self._post_geojson_paginated(params)
         if result.empty:
             log.warning("No intersecting HUC8 regions found.")
             return result

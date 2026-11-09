@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import logging
 import math
+import os
 import shutil
 from dataclasses import dataclass
 from pathlib import Path
@@ -37,6 +38,15 @@ from .reach_rasterize import (
 )
 
 log = logging.getLogger(__name__)
+
+# FillDepressions on flat, low-relief terrain (coastal plain, karst, etc.) can
+# legitimately take much longer than run_wbt_tool's 600s default -- many small
+# depressions to resolve, unlike the typical hilly-terrain DEM. Give it its own,
+# more generous default (overridable for tuning) rather than raising the global
+# default for every WBT call, most of which really are fast.
+_FILLDEPRESSIONS_TIMEOUT_S = float(
+    os.environ.get("FIMBOX_WBT_FILLDEPRESSIONS_TIMEOUT", 1800.0)
+)
 
 
 @dataclass
@@ -403,6 +413,7 @@ def _fill_depressions(dem: Path, out: Path, wbt_path: Optional[str] = None) -> N
             ],
             out_path=Path(out),
             wbt_path=wbt_path,
+            timeout=_FILLDEPRESSIONS_TIMEOUT_S,
         )
 
         # Post-check: an interior cell whose 8 neighbours are all strictly higher

@@ -164,7 +164,15 @@ class DownloadOSMRoads(_OSMBoundaryIO):
     _OVERPASS_MIRRORS: List[str] = None
 
     def __post_init__(self):
+        # overpass-api.de (and its lz4./z. mirrors) block Jetstream2's IP range
+        # outright (TCP connection refused, confirmed 2026-07-15) -- they're all
+        # the same backing infrastructure, so listing all three doesn't help.
+        # overpass.osm.ch is confirmed reachable AND answers real queries from
+        # Jetstream2; it's listed first so retries succeed quickly instead of
+        # cycling through dead hosts. The *.overpass-api.de hosts are kept as
+        # fallbacks in case the block is lifted or this runs from a non-JS2 host.
         self._OVERPASS_MIRRORS = [
+            "https://overpass.osm.ch/api/interpreter",
             "https://overpass-api.de/api/interpreter",
             "https://lz4.overpass-api.de/api/interpreter",
             "https://z.overpass-api.de/api/interpreter",
@@ -380,7 +388,11 @@ class DownloadOSMBridges(_OSMBoundaryIO):
     _OVERPASS_MIRRORS: List[str] = None
 
     def __post_init__(self):
+        # See the matching comment in DownloadOSMRoads.__post_init__ --
+        # overpass-api.de and its mirrors are unreachable from Jetstream2;
+        # overpass.osm.ch is confirmed working and tried first.
         self._OVERPASS_MIRRORS = [
+            "https://overpass.osm.ch/api",
             "https://overpass-api.de/api",
             "https://lz4.overpass-api.de/api",
             "https://z.overpass-api.de/api",
