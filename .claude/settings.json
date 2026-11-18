@@ -1,0 +1,25 @@
+{
+  "permissions": {
+    "allow": [
+      "Read(//c/Users/henao/Desktop/**)",
+      "Read(//c/Users/henao/OneDrive/1_ESTUDIO/3_MAESTRIA_UI/SI_TEAM_C/ML/**)",
+      "Bash(powershell -Command \"Get-Content 'C:\\\\Users\\\\henao\\\\OneDrive\\\\1_ESTUDIO\\\\3_MAESTRIA_UI\\\\SI_TEAM_C\\\\ML\\\\v4_A3_final\\\\n_zones_trend_analysis.csv' -TotalCount 5\")",
+      "Bash(powershell -Command \"Get-ChildItem 'C:\\\\Users\\\\henao\\\\OneDrive\\\\1_ESTUDIO\\\\3_MAESTRIA_UI\\\\SI_TEAM_C\\\\ML\\\\v4_A3_final-tx' | Select-Object Name\")",
+      "Bash(powershell -Command \"Get-Content 'C:\\\\Users\\\\henao\\\\OneDrive\\\\1_ESTUDIO\\\\3_MAESTRIA_UI\\\\SI_TEAM_C\\\\ML\\\\v4_A3_final-tx\\\\n_zones_trend_analysis.csv' -TotalCount 5\")",
+      "Bash(powershell -Command \"Get-Content 'C:\\\\Users\\\\henao\\\\OneDrive\\\\1_ESTUDIO\\\\3_MAESTRIA_UI\\\\SI_TEAM_C\\\\ML\\\\v4_A3_final-tx\\\\n_zones_summary.csv' -TotalCount 3\")",
+      "Read(//c/Users/henao/**)",
+      "Bash(python -c ' *)",
+      "Bash(where python *)",
+      "Bash(where py *)",
+      "Bash(py -c \"import pandas\")",
+      "Bash(conda env *)",
+      "Bash(jupyter kernelspec *)",
+      "Bash(/c/Users/henao/miniconda3/envs/si_ML/python.exe -c ' *)",
+      "Bash(\"/c/Users/henao/miniconda3/envs/si_ML/python.exe\" -c \"import matplotlib; print\\(matplotlib.__version__\\)\")",
+      "Bash(/c/Users/henao/miniconda3/envs/si_ML/python.exe -W error::DeprecationWarning -c ' *)"
+    ],
+    "additionalDirectories": [
+      "C:\\Users\\henao\\OneDrive\\1_ESTUDIO\\3_MAESTRIA_UI\\SI_TEAM_C\\ML"
+    ]
+  }
+}
