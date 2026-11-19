@@ -43,6 +43,29 @@ working directory).
   `E:/SI/out/calibration_analysis/scheme_evaluation/`.
 - Full narrative + evidence: `docs/method_decision_deck.pptx`.
 
+### Method HE — stage-banded Horton–Einstein composite n (`s05g_*`)
+
+- **`s05g_calibrate_he_composite.py`** (driver) + **`s05g_he_composite_core.py`**
+  (equations). Zones: `n_bathy` (solved from Q0, h0 and `mf_width` of
+  `Bankfull_Meanflow_CONUS.txt`, rectangular section replacing the HAND-0
+  channel bed) | 0→Tr2 | Tr2→Tr50 | Tr50→Tr100 (or the highest observed
+  rating-curve flow — no 100-yr flow ships with the repo). Composite
+  n_c(h) = [Σ P_k·n_k^1.5 / P]^(2/3) on the whole section; P_k from the
+  cumulative BedArea/L table with exact rows at h1, h2 (rebuilt from the HAND
+  and catchment rasters). Each zone n is fitted to 3 stages (1/3, 2/3, top)
+  minimising log-Q error, n ∈ [0.007, 0.36]. Default monotone handling: free
+  fit + running maximum (`FIMBOX_HE_MONOTONE=constrain` for the alternative).
+- Skips a gauge when Tr2 or Tr50 is missing/outside the observed curve, the
+  PZF fit fails, `mf_width` is missing, or Q0/(w·h0) > 1 m/s. Q0 < 0 → Q0 = 0,
+  and with Q0 = 0 the bathymetry zone is dropped for that gauge.
+- **Read-only** on the pipeline outputs; writes to
+  `/media/share/fimbox-conus-data/out_calib_hecomposite/` (ali/Jetstream2
+  layout; every path has an env-var override — see the script docstring).
+  Put `Bankfull_Meanflow_CONUS.txt` in
+  `/media/share/fimbox-conus-data/reference/` (or set `FIMBOX_BANKFULL_FILE`).
+- Run: `.venv/bin/python scripts/s05g_calibrate_he_composite.py [--huc H | --huc-list F] [--rerun]`.
+  Tests: `tests/test_he_composite.py`.
+
 ## 3. Analysis & export
 
 | Script | Produces | Output folder |
